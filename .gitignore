@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local Airflow and Snowflake files
+keys/
+logs/
+.DS_Store
