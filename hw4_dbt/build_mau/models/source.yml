@@ -1,0 +1,16 @@
+version: 2
+
+sources:
+  - name: raw
+    database: DEMO_DB
+    schema: raw
+    description: "Raw session data"
+
+    tables:
+      - name: user_session_channel
+        identifier: user_session_channel
+        description: "User, session, and channel data"
+
+      - name: session_timestamp
+        identifier: session_timestamp
+        description: "Session timestamp data"
