@@ -10,72 +10,90 @@ import requests
 @task
 def extract():
     """
-    Extract the last 60 days of weather data from Open-Meteo.
+    Extract weather data for Portland and Austin from Open-Meteo.
     """
 
-    latitude = float(Variable.get("latitude"))
-    longitude = float(Variable.get("longitude"))
-
-    url = "https://api.open-meteo.com/v1/forecast"
-
-    params = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "daily": (
-            "temperature_2m_max,"
-            "temperature_2m_min,"
-            "precipitation_sum,"
-            "weather_code"
-        ),
-        "past_days": 60,
-        "forecast_days": 0,
-        "timezone": "America/Los_Angeles"
-    }
-
-    response = requests.get(
-        url,
-        params=params,
-        timeout=30
+    cities = Variable.get(
+        "weather_cities",
+        deserialize_json=True
     )
 
-    response.raise_for_status()
+    extracted_data = []
 
-    print("Weather data extracted successfully")
+    for city_info in cities:
+        city = city_info["city"]
+        latitude = float(city_info["latitude"])
+        longitude = float(city_info["longitude"])
 
-    return response.json()
+        url = "https://api.open-meteo.com/v1/forecast"
+
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "daily": (
+                "temperature_2m_max,"
+                "temperature_2m_min,"
+                "precipitation_sum,"
+                "weather_code"
+            ),
+            "past_days": 60,
+            "forecast_days": 0,
+            "timezone": "auto"
+        }
+
+        response = requests.get(
+            url,
+            params=params,
+            timeout=30
+        )
+
+        response.raise_for_status()
+
+        extracted_data.append({
+            "city": city,
+            "latitude": latitude,
+            "longitude": longitude,
+            "weather": response.json()
+        })
+
+        print(f"Weather data extracted for {city}")
+
+    return extracted_data
 
 
 @task
-def transform(data):
+def transform(extracted_data):
     """
-    Transform the API response into rows for Snowflake.
+    Transform both city responses into Snowflake rows.
     """
-
-    latitude = float(Variable.get("latitude"))
-    longitude = float(Variable.get("longitude"))
-
-    daily = data["daily"]
-
-    dates = daily["time"]
-    temp_max_values = daily["temperature_2m_max"]
-    temp_min_values = daily["temperature_2m_min"]
-    precipitation_values = daily["precipitation_sum"]
-    weather_code_values = daily["weather_code"]
 
     rows = []
 
-    for i in range(len(dates)):
-        rows.append((
-            latitude,
-            longitude,
-            dates[i],
-            temp_max_values[i],
-            temp_min_values[i],
-            precipitation_values[i],
-            weather_code_values[i]
-        ))
+    for city_data in extracted_data:
+        city = city_data["city"]
+        latitude = city_data["latitude"]
+        longitude = city_data["longitude"]
+        daily = city_data["weather"]["daily"]
 
-    print("Rows transformed:", len(rows))
+        dates = daily["time"]
+        temp_max_values = daily["temperature_2m_max"]
+        temp_min_values = daily["temperature_2m_min"]
+        precipitation_values = daily["precipitation_sum"]
+        weather_code_values = daily["weather_code"]
+
+        for i in range(len(dates)):
+            rows.append((
+                city,
+                latitude,
+                longitude,
+                dates[i],
+                temp_max_values[i],
+                temp_min_values[i],
+                precipitation_values[i],
+                weather_code_values[i]
+            ))
+
+    print("Total rows transformed:", len(rows))
 
     return rows
 
@@ -95,7 +113,7 @@ def get_snowflake_connection():
 @task
 def load(rows):
     """
-    Full refresh load into Snowflake using a transaction.
+    Full-refresh load into Snowflake using a transaction.
     """
 
     database = "DEMO_DB"
@@ -113,9 +131,9 @@ def load(rows):
         connection = get_snowflake_connection()
         cursor = connection.cursor()
 
-        # Create the table if it does not exist
         create_table_sql = f"""
             CREATE TABLE IF NOT EXISTS {full_table_name} (
+                city VARCHAR,
                 latitude FLOAT,
                 longitude FLOAT,
                 "date" DATE,
@@ -123,16 +141,23 @@ def load(rows):
                 temp_min FLOAT,
                 precipitation FLOAT,
                 weather_code INTEGER,
-                PRIMARY KEY (latitude, longitude, "date")
+                PRIMARY KEY (city, latitude, longitude, "date")
             )
         """
 
         cursor.execute(create_table_sql)
 
-        # Start transaction for the data refresh
+        # Add city to the existing Portland-only table if needed.
+        cursor.execute(
+            f"""
+            ALTER TABLE {full_table_name}
+            ADD COLUMN IF NOT EXISTS city VARCHAR
+            """
+        )
+
         cursor.execute("BEGIN")
 
-        # Full refresh: remove existing records
+        # Full refresh makes reruns idempotent.
         cursor.execute(
             f"DELETE FROM {full_table_name}"
         )
@@ -140,6 +165,7 @@ def load(rows):
         insert_sql = f"""
             INSERT INTO {full_table_name}
             (
+                city,
                 latitude,
                 longitude,
                 "date",
@@ -148,12 +174,11 @@ def load(rows):
                 precipitation,
                 weather_code
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
 
         cursor.executemany(insert_sql, rows)
 
-        # Save the delete and insert operations
         cursor.execute("COMMIT")
 
         print("Transaction committed successfully")
@@ -181,11 +206,9 @@ with DAG(
     start_date=datetime(2026, 9, 14),
     schedule="@daily",
     catchup=False,
-    tags=["homework", "weather"]
+    tags=["lab", "weather"]
 ) as dag:
 
     weather_data = extract()
-
     weather_rows = transform(weather_data)
-
     load(weather_rows)
