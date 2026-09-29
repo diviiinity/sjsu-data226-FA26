@@ -4,10 +4,12 @@ Transforms the raw Open-Meteo weather data loaded by the Airflow ETL DAG into da
 
 ## Data flow
 
-DEMO_DB.RAW.WEATHER_TEMPERATURE (loaded by Airflow)
-  -> ANALYTICS.STG_WEATHER (view: cleaned and renamed columns)
-  -> ANALYTICS.WEATHER_METRICS (table: calculated metrics)
-  -> ANALYTICS.WEATHER_SNAPSHOT (snapshot: change history)
+~~~
+DEMO_DB.RAW.WEATHER_TEMPERATURE    (loaded by Airflow)
+  -> ANALYTICS.STG_WEATHER         (view: cleaned and renamed columns)
+  -> ANALYTICS.WEATHER_METRICS     (table: calculated metrics)
+  -> ANALYTICS.WEATHER_SNAPSHOT    (snapshot: change history)
+~~~
 
 ## Models
 
@@ -40,6 +42,8 @@ weather_snapshot tracks changes to temperature, precipitation and weather code p
 
 Requires a dbt profile named weather_analytics in ~/.dbt/profiles.yml pointing to Snowflake.
 
+~~~
 dbt run
 dbt test
 dbt snapshot
+~~~
