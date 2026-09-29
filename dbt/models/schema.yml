@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: stg_weather
+    description: "Cleaned daily weather for Portland and Austin"
+    columns:
+      - name: city
+        data_tests:
+          - not_null
+      - name: weather_date
+        data_tests:
+          - not_null
+
+  - name: weather_metrics
+    description: "Daily weather with moving average, anomaly, rolling rainfall and dry spell length"
+    columns:
+      - name: city
+        data_tests:
+          - not_null
+      - name: weather_date
+        data_tests:
+          - not_null
+      - name: temp_avg
+        data_tests:
+          - not_null
+      - name: precipitation_mm
+        data_tests:
+          - not_null
+      - name: dry_spell_length
+        data_tests:
+          - not_null

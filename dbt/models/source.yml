@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: raw
+    database: DEMO_DB
+    schema: RAW
+    tables:
+      - name: WEATHER_TEMPERATURE
+        description: "Daily weather for Portland and Austin, loaded by the Airflow ETL DAG"
