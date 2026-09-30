@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.decorators import task
 from airflow.models import Variable
 from airflow.providers.snowflake.hooks.snowflake import SnowflakeHook
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 from datetime import datetime
 import requests
@@ -211,4 +212,14 @@ with DAG(
 
     weather_data = extract()
     weather_rows = transform(weather_data)
-    load(weather_rows)
+
+    load_task = load(weather_rows)
+
+    trigger_dbt = TriggerDagRunOperator(
+        task_id="trigger_dbt",
+        trigger_dag_id="WeatherAnalyticsDBT",
+        wait_for_completion=True,
+        poke_interval=30,
+    )
+
+    load_task >> trigger_dbt

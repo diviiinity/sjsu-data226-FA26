@@ -1,0 +1,15 @@
+weather_analytics:
+  target: dev
+
+  outputs:
+    dev:
+      type: snowflake
+      account: "{{ env_var('DBT_ACCOUNT') }}"
+      user: "{{ env_var('DBT_USER') }}"
+      private_key_path: /opt/airflow/keys/rsa_key.p8
+      private_key_passphrase: "{{ env_var('DBT_PRIVATE_KEY_PASSPHRASE') }}"
+      role: "{{ env_var('DBT_ROLE') }}"
+      warehouse: "{{ env_var('DBT_WAREHOUSE') }}"
+      database: DEMO_DB
+      schema: ANALYTICS
+      threads: 1
